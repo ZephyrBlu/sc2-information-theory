@@ -126,10 +126,6 @@ def calc_information(replay):
                 objects.append(obj)
         objects.sort(key=lambda x: x.birth_time)
 
-        entropy = {
-            'buildings': 0,
-            'units': 0,
-        }
         buildings = []
         units = []
         for obj in objects:
@@ -137,42 +133,34 @@ def calc_information(replay):
                 'BUILDING' in obj.type
                 and obj.name_at_gameloop(0) in obj_proba['buildings'][player.race][opp_race]
             ):
-                entropy['buildings'] += -math.log2(obj_proba['buildings'][player.race][opp_race][obj.name_at_gameloop(0)])
-                buildings.append((obj.birth_time, round(entropy['buildings'], 2), obj.name_at_gameloop(0)))
+                information = -math.log2(obj_proba['buildings'][player.race][opp_race][obj.name_at_gameloop(0)])
+                buildings.append((obj.birth_time, round(information, 2), obj.name_at_gameloop(0)))
             elif (
                 'UNIT' in obj.type
                 and obj.name_at_gameloop(0) in obj_proba['units'][player.race][opp_race]
             ):
-                entropy['units'] += -math.log2(obj_proba['units'][player.race][opp_race][obj.name_at_gameloop(0)])
-                units.append((obj.birth_time, round(entropy['units'], 2), obj.name_at_gameloop(0)))
+                information = -math.log2(obj_proba['units'][player.race][opp_race][obj.name_at_gameloop(0)])
+                units.append((obj.birth_time, round(information, 2), obj.name_at_gameloop(0)))
 
-        building_grad = []
-        for i in range(1, len(buildings)):
-            gameloop, entropy, name = buildings[i]
-            prev_gameloop, prev_entropy, prev_name = buildings[i - 1]
-
-            if gameloop == prev_gameloop:
+        building_information = []
+        for gameloop, info, name in buildings:
+            if building_information and gameloop == building_information[-1][0]:
                 continue
 
-            diff = round(entropy - prev_entropy, 2)
-            building_grad.append((gameloop, diff, name, entropy))
+            building_information.append((gameloop, info, name, information))
 
-        for b in building_grad:
+        for b in building_information:
             print(b)
         print()
 
-        unit_grad = []
-        for i in range(1, len(units)):
-            gameloop, entropy, name = units[i]
-            prev_gameloop, prev_entropy, prev_name = units[i - 1]
-
-            if gameloop == prev_gameloop:
+        unit_information = []
+        for gameloop, info, name in units:
+            if unit_information and gameloop == unit_information[-1][0]:
                 continue
 
-            diff = round(entropy - prev_entropy, 2)
-            unit_grad.append((gameloop, diff, name, entropy))
+            unit_information.append((gameloop, info, name, information))
 
-        # for u in unit_grad:
+        # for u in unit_information:
         #     print(u)
         print('\n')
 
