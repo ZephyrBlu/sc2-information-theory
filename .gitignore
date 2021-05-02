@@ -1,5 +1,7 @@
 *.json
 /IEM
+token_information.py
+token_probability.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
