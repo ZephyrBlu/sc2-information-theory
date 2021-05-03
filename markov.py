@@ -10,7 +10,7 @@ from token_information import TOKEN_INFORMATION
 from token_probability import TOKEN_PROBABILITY
 
 
-test_replay = Path('IEM/1 - Playoffs/Finals/Reynor vs Zest/20210228 - GAME 6 - Reynor vs Zest - Z vs P - Pillars of Gold LE.SC2Replay')
+test_replay = Path('IEM/1 - Playoffs/Finals/Reynor vs Zest/20210228 - GAME 1 - Reynor vs Zest - Z vs P - Oxide LE.SC2Replay')
 replays = Path('IEM')
 buildings = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
 units = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
@@ -124,31 +124,38 @@ def calc_information(
     player_race,
     opp_race,
     build,
-    build_index,
-    path,
-    total,
-    probability,
-    prob_total,
+    build_index=0,
+    build_path=[],
+    information=0,
+    information_path=[],
+    probability=1,
+    probability_path=[],
 ):
     build_length = len(build)
     all_paths = []
     for i in range(1, 9):
-        new_path = copy.deepcopy(path)
-        new_total = copy.deepcopy(total)
+        new_path = copy.deepcopy(build_path)
+        new_information = copy.deepcopy(information)
+        new_information_path = copy.deepcopy(information_path)
         new_prob = copy.deepcopy(probability)
-        new_prob_total = copy.deepcopy(prob_total)
+        new_prob_path = copy.deepcopy(probability_path)
 
         token = tuple(build[build_index:build_index + i])
         if token not in TOKEN_INFORMATION[player_race][opp_race]:
             continue
 
-        new_total += TOKEN_INFORMATION[player_race][opp_race][token]
         token_prob = 1
         # print(token, len(token))
         for index in range(0, len(token)):
             token_fragment = token[:index + 1]
             token_prob *= TOKEN_PROBABILITY[player_race][opp_race][token_fragment]
-            new_prob_total += TOKEN_INFORMATION[player_race][opp_race][token_fragment]
+            new_prob_path.append(
+                TOKEN_PROBABILITY[player_race][opp_race][token_fragment]
+            )
+            new_information += TOKEN_INFORMATION[player_race][opp_race][token_fragment]
+            new_information_path.append(
+                TOKEN_INFORMATION[player_race][opp_race][token_fragment]
+            )
             # print(
             #     index + 1,
             #     TOKEN_PROBABILITY[player_race][opp_race][token_fragment],
@@ -162,11 +169,25 @@ def calc_information(
         # exit if we're at the end of the build
         if build_index + i >= build_length:
             # print(new_path, token, build_index, i, build_index + i)
-            all_paths.append((new_path, new_total, new_prob, new_prob_total))
+            all_paths.append((
+                new_path,
+                new_information,
+                new_prob,
+                new_information_path,
+                new_prob_path,
+            ))
             return all_paths
 
         calculated_paths = calc_information(
-            player_race, opp_race, build, build_index + i, new_path, new_total, new_prob, new_prob_total
+            player_race,
+            opp_race,
+            build,
+            build_index + i,
+            new_path,
+            new_information,
+            new_information_path,
+            new_prob,
+            new_prob_path,
         )
         all_paths.extend(calculated_paths)
     return all_paths
@@ -197,10 +218,10 @@ def analyze_build(replay):
             if 'BUILDING' in obj.type:
                 build.append(obj.name_at_gameloop(0))
 
-        paths = list(calc_information(player.race, opp_race, build, 0, [], 0, 1, 0))
+        paths = list(calc_information(player.race, opp_race, build))
         paths.sort(key=lambda x: x[2], reverse=True)
-        for p, c, l, i in paths:
-            print(c, l, i, p, '\n')
+        for pa, i, pr, ip, pp in paths:
+            print(i, pr, pa, ip, pp, '\n')
         print(build)
 
 
