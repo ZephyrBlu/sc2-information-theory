@@ -109,8 +109,6 @@ def generate_token_distributions(source):
 def _generate_next_tokens(
     build,
     *,
-    player_race=None,
-    opp_race=None,
     max_token_size=8,
     build_index=0,
     build_tokens=[],
@@ -118,22 +116,9 @@ def _generate_next_tokens(
     probability_values=[],
     information=0,
     information_values=[],
-    token_probability=TOKEN_PROBABILITY,
-    token_information=TOKEN_INFORMATION,
+    token_probability,
+    token_information,
 ):
-    if player_race and opp_race:
-        if (
-            player_race in token_probability
-            and opp_race in token_probability[player_race]
-        ):
-            token_probability = token_probability[player_race][opp_race]
-
-        if (
-            player_race in token_information
-            and opp_race in token_information[player_race]
-        ):
-            token_information = token_information[player_race][opp_race]
-
     build_length = len(build)
     all_paths = []
     # generate new path information for each possible new token
@@ -188,8 +173,6 @@ def _generate_next_tokens(
 
         calculated_paths = _generate_next_tokens(
             build,
-            player_race=player_race,
-            opp_race=opp_race,
             build_index=build_index + i,
             build_tokens=updated_tokens,
             probability=updated_probability,
@@ -210,12 +193,23 @@ def generate_paths(
     token_probability=TOKEN_PROBABILITY,
     token_information=TOKEN_INFORMATION,
 ):
+    if player_race and opp_race:
+        if (
+            player_race in token_probability
+            and opp_race in token_probability[player_race]
+        ):
+            token_probability = token_probability[player_race][opp_race]
+
+        if (
+            player_race in token_information
+            and opp_race in token_information[player_race]
+        ):
+            token_information = token_information[player_race][opp_race]
+
     paths = _generate_next_tokens(
         build,
-        player_race=player_race,
-        opp_race=opp_race,
-        token_probability=TOKEN_PROBABILITY,
-        token_information=TOKEN_INFORMATION,
+        token_probability=token_probability,
+        token_information=token_information,
     )
 
     # sort by overall conditional probability of path

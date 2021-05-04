@@ -2,7 +2,6 @@ from pathlib import Path
 from collections import defaultdict
 
 from sc2_build_tokenizer import (
-    tokenize,
     parse_builds,
     generate_build_tokens,
     generate_token_distributions,
