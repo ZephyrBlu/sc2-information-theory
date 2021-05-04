@@ -1,160 +1,109 @@
 import math
 import copy
-import traceback
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from zephyrus_sc2_parser import parse_replay
 
-from extracted_builds import BUILDS
-from token_information import TOKEN_INFORMATION
-from token_probability import TOKEN_PROBABILITY
+from sc2_build_tokenizer.data.tokenized_builds import BUILDS
+from sc2_build_tokenizer.data.token_information import TOKEN_INFORMATION
+from sc2_build_tokenizer.data.token_probability import TOKEN_PROBABILITY
+from sc2_build_tokenizer.constants import IGNORE_OBJECTS
 
 
-test_replay = Path('IEM/1 - Playoffs/Finals/Reynor vs Zest/20210228 - GAME 1 - Reynor vs Zest - Z vs P - Oxide LE.SC2Replay')
-replays = Path('IEM')
-buildings = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
-units = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
-ignored = defaultdict(int)
-errors = defaultdict(int)
-
-IGNORE_OBJECTS = [
-    'Pylon',
-    'Overlord',
-    'SupplyDepot',
-    'MissileTurret',
-    'SensorTower',
-    'SpineCrawler',
-    'SporeCrawler',
-    'PhotonCannon',
-    'Interceptor',
-    'MULE',
-    'AutoTurret',
-    'Larva',
-    'Egg',
-    'LocustMP',
-    'LocustMPPrecursor',
-    'LocustMPFlying',
-    'ShieldBattery',
-    'Bunker',
-    'CreepTumor',
-    'CreepTumorQueen',
-    'CreepTumorBurrowed',
-    'Broodling',
-    'BroodlingEscort',
-    'NydusCanal',
-
-    # remove gas buildings and workers to reduce noise
-    'Extractor',
-    'Assimilator',
-    'Refinery',
-    'Probe',
-    'Drone',
-    'SCV',
-]
+TEST_REPLAY_PATH = Path('IEM/1 - Playoffs/Finals/Reynor vs Zest/20210228 - GAME 1 - Reynor vs Zest - Z vs P - Oxide LE.SC2Replay')
+REPLAY_PATH = Path('IEM')
+TokenizedBuild = namedtuple('TokenizedBuild', ['race', 'build'])
+BuildPath = namedtuple('BuildPath', [
+    'path',
+    'probability',
+    'probability_values',
+    'information',
+    'information_values',
+])
 
 
-def recurse(dir_path, fn):
+def tokenize(replay, end=9408, ignore=IGNORE_OBJECTS):
     """
-    Recursively searches directories to parse replay files
+    9408 = 7min
     """
-    if dir_path.is_file():
-        try:
-            replay = parse_replay(dir_path, local=True, network=False)
-            print('Parsed Replay')
-        except Exception:
-            errors[traceback.format_exc()] += 1
+    parsed_replay = replay
+    if type(replay) is str:
+        parsed_replay = parse_replay(replay, local=True, network=False)
 
-        fn(replay)
-        return
-
-    for obj_path in dir_path.iterdir():
-        if obj_path.is_file():
-            try:
-                replay = parse_replay(obj_path, local=True, network=False)
-                print('Parsed Replay')
-            except Exception:
-                errors[traceback.format_exc()] += 1
-                continue
-
-            fn(replay)
-        elif obj_path.is_dir():
-            recurse(obj_path, fn)
-
-
-def extract_build(replay):
-    """
-    1) Extract full build
-    2) Iterate through build, create Markov Chains at each tick interval
-    3)
-    """
-    for p_id, player in replay.players.items():
-        opp_id = 1 if p_id == 2 else 2
-        opp_race = replay.players[opp_id].race
-
-        build = []
-        objects = player.objects.values()
-        for obj in objects:
+    builds = []
+    for p_id, player in parsed_replay.players.items():
+        player_build = []
+        for obj in player.objects.values():
             if (
                 not obj.birth_time
-                # 9408 = 7min
-                or obj.birth_time > 9408
-                or obj.name_at_gameloop(0) in IGNORE_OBJECTS
+                or obj.birth_time > end
+                or obj.name_at_gameloop(0) in ignore
             ):
-                ignored[obj.name_at_gameloop(0)] += 1
                 continue
 
             if 'BUILDING' in obj.type:
-                build.append(obj.name_at_gameloop(0))
+                player_build.append(obj.name_at_gameloop(0))
 
-        extracted.append((player.race, opp_race, build))
-
-        for i in range(0, len(build)):
-            for index in range(1, 9):
-                token = build[i:i + index]
-                build_chains[player.race][opp_race][tuple(token)] += 1
-
-                # exit if we're at the end of the build
-                if i + index >= len(build):
-                    break
-
-    print('Recorded Building Frequencies\n')
+    return builds
 
 
-def calc_information(
-    player_race,
-    opp_race,
+def _generate_next_tokens(
     build,
+    *,
+    player_race=None,
+    opp_race=None,
+    max_token_size=8,
     build_index=0,
     build_path=[],
     information=0,
     information_path=[],
     probability=1,
     probability_path=[],
+    token_probability=TOKEN_PROBABILITY,
+    token_information=TOKEN_INFORMATION,
 ):
+    if player_race and opp_race:
+        if (
+            player_race in token_probability
+            and opp_race in token_probability[player_race]
+        ):
+            token_probability = token_probability[player_race][opp_race]
+
+        if (
+            player_race in token_information
+            and opp_race in token_information[player_race]
+        ):
+            token_information = token_information[player_race][opp_race]
+
     build_length = len(build)
     all_paths = []
-    for i in range(1, 9):
-        new_path = copy.deepcopy(build_path)
-        new_information = copy.deepcopy(information)
-        new_information_path = copy.deepcopy(information_path)
-        new_prob = copy.deepcopy(probability)
-        new_prob_path = copy.deepcopy(probability_path)
+    # generate new path information for each possible new token
+    for i in range(1, max_token_size + 1):
+        # don't need copies for values, but it keeps things explicit
+        updated_path = copy.deepcopy(build_path)
+        updated_probability = copy.deepcopy(probability)
+        updated_probability_values = copy.deepcopy(probability_path)
+        updated_information = copy.deepcopy(information)
+        updated_information_values = copy.deepcopy(information_path)
 
         token = tuple(build[build_index:build_index + i])
-        if token not in TOKEN_INFORMATION[player_race][opp_race]:
+
+        # if we don't have a record of the preceding sequence,
+        # it was too unlikely to record so we bail
+        if token not in token_probability:
             continue
 
         token_prob = 1
         # print(token, len(token))
         for index in range(0, len(token)):
             token_fragment = token[:index + 1]
-            token_prob *= TOKEN_PROBABILITY[player_race][opp_race][token_fragment]
-            new_prob_path.append(
-                TOKEN_PROBABILITY[player_race][opp_race][token_fragment]
+            token_prob *= token_probability[token_fragment]
+            updated_probability_values.append(
+                token_probability[token_fragment]
             )
-            new_information += TOKEN_INFORMATION[player_race][opp_race][token_fragment]
-            new_information_path.append(
-                TOKEN_INFORMATION[player_race][opp_race][token_fragment]
+            updated_information += token_information[token_fragment]
+            updated_information_values.append(
+                token_information[token_fragment]
             )
             # print(
             #     index + 1,
@@ -163,66 +112,50 @@ def calc_information(
             #     token_fragment,
             # )
         # print('\n')
-        new_prob *= token_prob
-        new_path.append(token)
+        updated_probability *= token_prob
+        updated_path.append(token)
 
         # exit if we're at the end of the build
         if build_index + i >= build_length:
             # print(new_path, token, build_index, i, build_index + i)
-            all_paths.append((
-                new_path,
-                new_information,
-                new_prob,
-                new_information_path,
-                new_prob_path,
+            all_paths.append(BuildPath(
+                updated_path,
+                updated_probability,
+                updated_probability_values,
+                updated_information,
+                updated_information_values,
             ))
             return all_paths
 
-        calculated_paths = calc_information(
-            player_race,
-            opp_race,
+        calculated_paths = _generate_next_tokens(
             build,
-            build_index + i,
-            new_path,
-            new_information,
-            new_information_path,
-            new_prob,
-            new_prob_path,
+            player_race=player_race,
+            opp_race=opp_race,
+            build_index=build_index + i,
+            build_path=updated_path,
+            probability=updated_probability,
+            probability_values=updated_probability_values,
+            information=updated_information,
+            information_values=updated_information_values,
+            token_probability=token_probability,
+            token_information=token_information
         )
         all_paths.extend(calculated_paths)
     return all_paths
 
 
-def analyze_build(replay):
+def generate_paths(build, player_race, opp_race):
     """
     1) Extract full build
     2) Iterate through build, create Markov Chains at each tick interval
     3)
     """
-    for p_id, player in replay.players.items():
-        opp_id = 1 if p_id == 2 else 2
-        opp_race = replay.players[opp_id].race
-
-        build = []
-        objects = player.objects.values()
-        for obj in objects:
-            if (
-                not obj.birth_time
-                # 9408 = 7min
-                or obj.birth_time > 9408
-                or obj.name_at_gameloop(0) in IGNORE_OBJECTS
-            ):
-                ignored[obj.name_at_gameloop(0)] += 1
-                continue
-
-            if 'BUILDING' in obj.type:
-                build.append(obj.name_at_gameloop(0))
-
-        paths = list(calc_information(player.race, opp_race, build))
-        paths.sort(key=lambda x: x[2], reverse=True)
-        for pa, i, pr, ip, pp in paths:
-            print(i, pr, pa, ip, pp, '\n')
-        print(build)
+    paths = _generate_next_tokens(player_race, opp_race, build)
+    # sort by overall conditional probability of path
+    paths.sort(key=lambda x: x[2], reverse=True)
+    for pa, i, pr, ip, pp in paths:
+        print(i, pr, pa, ip, pp, '\n')
+    print(build)
 
 
 def write_token_data():
