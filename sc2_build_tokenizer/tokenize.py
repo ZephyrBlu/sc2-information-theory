@@ -2,17 +2,14 @@ import math
 import copy
 from pathlib import Path
 from collections import defaultdict, namedtuple
-from zephyrus_sc2_parser import parse_replay
 
 from sc2_build_tokenizer.data.tokenized_builds import BUILDS
 from sc2_build_tokenizer.data.token_information import TOKEN_INFORMATION
 from sc2_build_tokenizer.data.token_probability import TOKEN_PROBABILITY
-from sc2_build_tokenizer.constants import IGNORE_OBJECTS
 
 TEST_REPLAY_PATH = Path('IEM/1 - Playoffs/Finals/Reynor vs Zest/20210228 - GAME 1 - Reynor vs Zest - Z vs P - Oxide LE.SC2Replay')
 REPLAY_PATH = Path('IEM')
 BUILD_TOKENS = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-Build = namedtuple('Build', ['race', 'build'])
 TokenizedBuild = namedtuple('TokenizedBuild', [
     'tokens',
     'probability',
@@ -22,41 +19,19 @@ TokenizedBuild = namedtuple('TokenizedBuild', [
 ])
 
 
-def parse_builds(replay, end=9408, ignore=IGNORE_OBJECTS):
-    """
-    9408 = 7min
-    """
-    parsed_replay = replay
-    if type(replay) is str:
-        parsed_replay = parse_replay(replay, local=True, network=False)
-
-    builds = []
-    for p_id, player in parsed_replay.players.items():
-        player_build = Build(player.race, [])
-        for obj in player.objects.values():
-            if (
-                not obj.birth_time
-                or obj.birth_time > end
-                or obj.name_at_gameloop(0) in ignore
-            ):
-                continue
-
-            if 'BUILDING' in obj.type:
-                player_build.build.append(obj.name_at_gameloop(0))
-
-    return builds
-
-
-def tokenize_build(build):
+def generate_build_tokens(build, source=None):
     builds = build
     if type(build) is not list:
         builds = [build]
 
-    build_tokens = defaultdict(int)
+    build_tokens = source
+    if not source:
+        build_tokens = defaultdict(int)
+
     for b in builds:
         for i in range(0, len(b)):
             for index in range(1, 9):
-                token = build[i:i + index]
+                token = b[i:i + index]
                 build_tokens[tuple(token)] += 1
 
                 # exit if we're at the end of the build
@@ -164,7 +139,11 @@ def _generate_next_tokens(
 
 
 def generate_paths(build, player_race, opp_race):
-    paths = _generate_next_tokens(player_race, opp_race, build)
+    paths = _generate_next_tokens(
+        build,
+        player_race=player_race,
+        opp_race=opp_race,
+    )
     # sort by overall conditional probability of path
     paths.sort(key=lambda x: x[2], reverse=True)
     for pa, i, pr, ip, pp in paths:
