@@ -5,6 +5,7 @@ from zephyrus_sc2_parser import parse_replay
 from sc2_build_tokenizer.constants import IGNORE_OBJECTS
 
 ERRORS = defaultdict(int)
+BUILD_TOKENS = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
 
 def recurse(dir_path, fn):
@@ -64,10 +65,8 @@ def extract_build(replay):
         for i in range(0, len(build)):
             for index in range(1, 9):
                 token = build[i:i + index]
-                build_chains[player.race][opp_race][tuple(token)] += 1
+                BUILD_TOKENS[player.race][opp_race][tuple(token)] += 1
 
                 # exit if we're at the end of the build
                 if i + index >= len(build):
                     break
-
-    print('Recorded Building Frequencies\n')
