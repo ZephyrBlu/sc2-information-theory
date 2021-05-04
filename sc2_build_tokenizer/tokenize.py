@@ -3,9 +3,8 @@ import copy
 from pathlib import Path
 from collections import defaultdict, namedtuple
 
-from sc2_build_tokenizer.data.tokenized_builds import BUILDS
-from sc2_build_tokenizer.data.token_information import TOKEN_INFORMATION
-from sc2_build_tokenizer.data.token_probability import TOKEN_PROBABILITY
+from sc2_build_tokenizer.data import TOKEN_INFORMATION
+from sc2_build_tokenizer.data import TOKEN_PROBABILITY
 
 TEST_REPLAY_PATH = Path('IEM/1 - Playoffs/Finals/Reynor vs Zest/20210228 - GAME 1 - Reynor vs Zest - Z vs P - Oxide LE.SC2Replay')
 REPLAY_PATH = Path('IEM')
