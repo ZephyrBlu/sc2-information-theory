@@ -10,7 +10,7 @@ ERRORS = defaultdict(int)
 Build = namedtuple('Build', ['race', 'build'])
 
 
-def recurse(dir_path, fn):
+def _recurse(dir_path, fn):
     """
     Recursively searches directories to parse replay files
     """
@@ -33,7 +33,7 @@ def recurse(dir_path, fn):
 
             results.append(fn(replay))
         elif obj_path.is_dir():
-            results.extend(recurse(obj_path, fn))
+            results.extend(_recurse(obj_path, fn))
 
     return results
 
@@ -44,7 +44,7 @@ def parse_builds(replays, end=SEVEN_MINUTES, ignore=IGNORE_OBJECTS):
     """
     parsed_replays = replays
     if type(replays) is str:
-        parsed_replays = recurse(replays)
+        parsed_replays = _recurse(replays)
 
     builds = []
     for replay in parsed_replays:

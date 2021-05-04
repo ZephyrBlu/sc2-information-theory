@@ -1,5 +1,9 @@
 from sc2_build_tokenizer.parse import parse_builds
 from sc2_build_tokenizer.tokenize import generate_build_tokens, generate_paths
+from sc2_build_tokenizer.distribution import (
+    generate_probability_distribution,
+    generate_information_distribution,
+)
 
 
 def tokenize(replay):
