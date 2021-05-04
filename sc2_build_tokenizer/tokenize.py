@@ -1,6 +1,8 @@
 import copy
+import math
 from pathlib import Path
-from collections import defaultdict, namedtuple
+from dataclasses import dataclass
+from collections import defaultdict
 
 from sc2_build_tokenizer.data import TOKEN_INFORMATION
 from sc2_build_tokenizer.data import TOKEN_PROBABILITY
@@ -8,13 +10,34 @@ from sc2_build_tokenizer.data import TOKEN_PROBABILITY
 TEST_REPLAY_PATH = Path('IEM/1 - Playoffs/Finals/Reynor vs Zest/20210228 - GAME 1 - Reynor vs Zest - Z vs P - Oxide LE.SC2Replay')
 REPLAY_PATH = Path('IEM')
 BUILD_TOKENS = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-TokenizedBuild = namedtuple('TokenizedBuild', [
-    'tokens',
-    'probability',
-    'probability_values',
-    'information',
-    'information_values',
-])
+
+# TokenizedBuild = namedtuple('TokenizedBuild', [
+#     'tokens',
+#     'probability',
+#     'probability_values',
+#     'information',
+#     'information_values',
+# ])
+@dataclass
+class TokenizedBuild:
+    tokens: list
+    probability: float
+    probability_values: list
+    information: float
+    information_values: list
+
+
+@dataclass
+class TokenDistributions:
+    probability: dict = {}
+    information: dict = {}
+
+    @staticmethod
+    def to_dict(distribution):
+        for k, v in distribution.items():
+            if isinstance(v, dict):
+                distribution[k] = TokenDistributions.to_dict(v)
+        return dict(distribution)
 
 
 def generate_build_tokens(build, source=None):
@@ -37,6 +60,50 @@ def generate_build_tokens(build, source=None):
                     break
 
     return build_tokens
+
+
+def generate_token_distributions(source):
+    distributions = TokenDistributions()
+    tokenized = list(source.items())
+    unigrams = {}
+    ngram_tokens = defaultdict(dict)
+
+    # unigrams are a special case because they have no corresponding
+    # predicted token. It's easier to store them separately
+    for tokens, count in tokenized:
+        if len(tokens) == 1:
+            unigrams[tokens] = count
+            continue
+
+        ngram = tokens[:-1]
+        predicted = tokens[-1]
+
+        ngram_tokens[ngram][predicted] = count
+
+    total = sum(unigrams.values())
+    tokens = list(unigrams.items())
+    for token, count in tokens:
+        distributions.probability[token] = count / total
+        distributions.information[token] = -math.log2(count / total)
+        print(count, source[token], token)
+
+    for tokens, outcomes in ngram_tokens.items():
+        total = sum(outcomes.values())
+
+        # 10 is an arbitrary minimum number of samples
+        # to reduce overfitting paths based on a few samples
+        if total < 10:
+            continue
+
+        predicted = list(outcomes.items())
+        print(tokens)
+        for token, count in predicted:
+            distributions.probability[(*tokens, token)] = count / total
+            distributions.information[(*tokens, token)] = -math.log2(count / total)
+            print(count, source[(*tokens, token)], token)
+        print('\n')
+
+    return distributions
 
 
 def _generate_next_tokens(
@@ -136,15 +203,21 @@ def _generate_next_tokens(
     return all_paths
 
 
-def generate_paths(build, player_race, opp_race):
+def generate_paths(
+    build,
+    player_race,
+    opp_race,
+    token_probability=TOKEN_PROBABILITY,
+    token_information=TOKEN_INFORMATION,
+):
     paths = _generate_next_tokens(
         build,
         player_race=player_race,
         opp_race=opp_race,
+        token_probability=TOKEN_PROBABILITY,
+        token_information=TOKEN_INFORMATION,
     )
+
     # sort by overall conditional probability of path
     paths.sort(key=lambda x: x[2], reverse=True)
-    for pa, i, pr, ip, pp in paths:
-        print(i, pr, pa, ip, pp, '\n')
-    print(build)
     return paths

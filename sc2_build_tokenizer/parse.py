@@ -1,5 +1,6 @@
 import traceback
-from collections import defaultdict, namedtuple
+from dataclasses import dataclass
+from collections import defaultdict
 from zephyrus_sc2_parser import parse_replay
 
 from sc2_build_tokenizer.constants import IGNORE_OBJECTS
@@ -7,7 +8,12 @@ from sc2_build_tokenizer.constants import IGNORE_OBJECTS
 # 22.4 gameloops per second
 SEVEN_MINUTES = 9408
 ERRORS = defaultdict(int)
-Build = namedtuple('Build', ['race', 'build'])
+
+# Build = namedtuple('Build', ['race', 'build'])
+@dataclass
+class ParsedBuild:
+    race: str
+    build: list = []
 
 
 def _recurse(dir_path, fn):
@@ -50,7 +56,7 @@ def parse_builds(replays, end=SEVEN_MINUTES, ignore=IGNORE_OBJECTS):
     for replay in parsed_replays:
         replay_builds = []
         for p_id, player in replay.players.items():
-            player_build = Build(player.race, [])
+            player_build = ParsedBuild(player.race)
             for obj in player.objects.values():
                 if (
                     not obj.birth_time
@@ -64,6 +70,4 @@ def parse_builds(replays, end=SEVEN_MINUTES, ignore=IGNORE_OBJECTS):
             replay_builds.append(player_build)
         builds.append(replay_builds)
 
-    if len(builds) == 1:
-        return builds[0]
     return builds
