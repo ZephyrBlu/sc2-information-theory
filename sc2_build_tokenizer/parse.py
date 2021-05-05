@@ -1,4 +1,5 @@
 import traceback
+from pathlib import PurePath
 from dataclasses import dataclass
 from collections import defaultdict
 from zephyrus_sc2_parser import parse_replay
@@ -9,14 +10,20 @@ from sc2_build_tokenizer.constants import IGNORE_OBJECTS
 SEVEN_MINUTES = 9408
 ERRORS = defaultdict(int)
 
-# Build = namedtuple('Build', ['race', 'build'])
+
 @dataclass
 class ParsedBuild:
     race: str
-    build: list = []
+    build: list
+
+    def to_json(self):
+        return {
+            'race': self.race,
+            'build': self.build,
+        }
 
 
-def _recurse(dir_path, fn):
+def _recurse(dir_path, fn=None):
     """
     Recursively searches directories to parse replay files
     """
@@ -26,7 +33,7 @@ def _recurse(dir_path, fn):
         except Exception:
             ERRORS[traceback.format_exc()] += 1
 
-        return fn(replay)
+        return [fn(replay) if fn else replay]
 
     results = []
     for obj_path in dir_path.iterdir():
@@ -37,7 +44,7 @@ def _recurse(dir_path, fn):
                 ERRORS[traceback.format_exc()] += 1
                 continue
 
-            results.append(fn(replay))
+            results.append(fn(replay) if fn else replay)
         elif obj_path.is_dir():
             results.extend(_recurse(obj_path, fn))
 
@@ -49,14 +56,14 @@ def parse_builds(replays, end=SEVEN_MINUTES, ignore=IGNORE_OBJECTS):
     9408 = 7min
     """
     parsed_replays = replays
-    if type(replays) is str:
+    if isinstance(replays, PurePath):
         parsed_replays = _recurse(replays)
 
     builds = []
     for replay in parsed_replays:
         replay_builds = []
         for p_id, player in replay.players.items():
-            player_build = ParsedBuild(player.race)
+            player_build = ParsedBuild(player.race, [])
             for obj in player.objects.values():
                 if (
                     not obj.birth_time

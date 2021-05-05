@@ -11,13 +11,7 @@ TEST_REPLAY_PATH = Path('IEM/1 - Playoffs/Finals/Reynor vs Zest/20210228 - GAME 
 REPLAY_PATH = Path('IEM')
 BUILD_TOKENS = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
-# TokenizedBuild = namedtuple('TokenizedBuild', [
-#     'tokens',
-#     'probability',
-#     'probability_values',
-#     'information',
-#     'information_values',
-# ])
+
 @dataclass
 class TokenizedBuild:
     tokens: list
@@ -29,8 +23,8 @@ class TokenizedBuild:
 
 @dataclass
 class TokenDistributions:
-    probability: dict = {}
-    information: dict = {}
+    probability: dict
+    information: dict
 
     @staticmethod
     def to_dict(distribution):
@@ -41,29 +35,24 @@ class TokenDistributions:
 
 
 def generate_build_tokens(build, source=None):
-    builds = build
-    if type(build) is not list:
-        builds = [build]
-
     build_tokens = source
     if not source:
         build_tokens = defaultdict(int)
 
-    for b in builds:
-        for i in range(0, len(b)):
-            for index in range(1, 9):
-                token = b[i:i + index]
-                build_tokens[tuple(token)] += 1
+    for i in range(0, len(build)):
+        for index in range(1, 9):
+            token = build[i:i + index]
+            build_tokens[tuple(token)] += 1
 
-                # exit if we're at the end of the build
-                if i + index >= len(build):
-                    break
+            # exit if we're at the end of the build
+            if i + index >= len(build):
+                break
 
     return build_tokens
 
 
 def generate_token_distributions(source):
-    distributions = TokenDistributions()
+    distributions = TokenDistributions({}, {})
     tokenized = list(source.items())
     unigrams = {}
     ngram_tokens = defaultdict(dict)
@@ -85,7 +74,7 @@ def generate_token_distributions(source):
     for token, count in tokens:
         distributions.probability[token] = count / total
         distributions.information[token] = -math.log2(count / total)
-        print(count, source[token], token)
+        print(count, distributions.probability[token], token)
 
     for tokens, outcomes in ngram_tokens.items():
         total = sum(outcomes.values())
@@ -206,6 +195,8 @@ def generate_paths(
         ):
             token_information = token_information[player_race][opp_race]
 
+    # print(token_probability, token_information)
+
     paths = _generate_next_tokens(
         build,
         token_probability=token_probability,
@@ -213,5 +204,5 @@ def generate_paths(
     )
 
     # sort by overall conditional probability of path
-    paths.sort(key=lambda x: x[2], reverse=True)
+    paths.sort(key=lambda path: path.probability, reverse=True)
     return paths
