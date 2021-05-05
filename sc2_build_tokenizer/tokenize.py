@@ -1,15 +1,10 @@
 import copy
 import math
-from pathlib import Path
 from dataclasses import dataclass
 from collections import defaultdict
 
 from sc2_build_tokenizer.data import TOKEN_INFORMATION
 from sc2_build_tokenizer.data import TOKEN_PROBABILITY
-
-TEST_REPLAY_PATH = Path('IEM/1 - Playoffs/Finals/Reynor vs Zest/20210228 - GAME 1 - Reynor vs Zest - Z vs P - Oxide LE.SC2Replay')
-REPLAY_PATH = Path('IEM')
-BUILD_TOKENS = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
 
 @dataclass
@@ -89,7 +84,7 @@ def generate_token_distributions(source):
         for token, count in predicted:
             distributions.probability[(*tokens, token)] = count / total
             distributions.information[(*tokens, token)] = -math.log2(count / total)
-            print(count, source[(*tokens, token)], token)
+            print(count, distributions.probability[(*tokens, token)], token)
         print('\n')
 
     return distributions
