@@ -49,7 +49,7 @@ def manual_tokenize(*, _write_builds=False, _write_distributions=True):
             builds.write(f'PARSED_BUILDS = {serialized_builds}')
     else:
         parsed_builds = map(
-            lambda build: ParsedBuild(build['race'], build['build']),
+            lambda game: list([ParsedBuild(build['race'], build['build']) for build in game]),
             PARSED_BUILDS,
         )
 
@@ -110,6 +110,6 @@ def manual_tokenize(*, _write_builds=False, _write_distributions=True):
 
 
 manual_tokenize(
-    _write_builds=True,
-    _write_distributions=True,
+    _write_builds=False,
+    _write_distributions=False,
 )
